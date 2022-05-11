@@ -1,7 +1,7 @@
 #include <stdio.h>
 #include <sys/types.h>
+#include <sys/wait.h>
 #include <unistd.h>
-#include "stdlib.h"
 
 #include "limits.h"
 #include "LineParser.h"
@@ -14,23 +14,32 @@
 
 int execute(cmdLine *pCmdLine)
 {
+    int status;
     int pid_t = fork();
     if (pid_t)
     {
-        wait();
+        wait(&status);
+        return status;
+
     } else
     {
         execv(pCmdLine->arguments[0], pCmdLine->arguments);
+        perror(NULL);
     }
 }
 
 int main(int argc, char **argv)
 {
     char *cwd;
+    cmdLine *current_cmd;
     getcwd(cwd, MAX_PATH);
     write(STDOUT, cwd, strlen(cwd));
     char *user_input;
     fgets(user_input, MAX_INPUT, (FILE *) 1);
-    cmdLine *current_cmd = parseCmdLines(user_input);
-
+    while (strcmp(user_input, "quit"))
+    {
+        current_cmd = parseCmdLines(user_input);
+        execute(current_cmd);
+    }
+    return 0;
 }
