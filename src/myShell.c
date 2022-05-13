@@ -34,7 +34,8 @@ int execute(cmdLine *pCmdLine)
     
     if (ch_pid > 0)
     {
-        wait(&status);
+	if (pCmdLine->blocking)
+		wait(&status);
         return status;
 
     } else
