@@ -104,7 +104,7 @@ void addProcess(process **process_list, cmdLine *cmd, pid_t pid) {
 void printProcessList(process **process_list) {
     if (*process_list == NULL) {
         printf("process list is empty\n");
-	return;
+        return;
     }
     updateProcessList(process_list);
 
