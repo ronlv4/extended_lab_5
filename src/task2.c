@@ -1,8 +1,9 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <unistd.h>
+#include <errno.h>
 #include <sys/types.h>
 #include <sys/wait.h>
-#include <unistd.h>
 
 #include "limits.h"
 #include "string.h"
@@ -26,6 +27,64 @@ typedef struct process {
     struct process *next; /* next process in chain */
 } process;
 
+void updateProcessList(process **process_list)
+{
+    process *current_process = *process_list;
+    if (current_process == NULL)
+    {
+	printf("process list is empty\nno process has been updated\n");
+	return;
+    }
+    while (current_process)
+    {
+	
+	
+    }
+}
+
+void nap(int time, int ps_pid)
+{
+    int status;
+    int pid = fork();
+    if (pid == -1)
+    {
+	perror(NULL);
+	_exit(pid);
+    }
+    if (pid)
+    {
+	wait(&status);
+	return;
+    }
+    else
+    {
+	kill(ps_pid, SIGTSTP);
+	sleep(time);
+	kill(ps_pid, SIGCONT);
+	return;
+    }
+}
+
+void stop(int pid)
+{
+    kill(pid, SIGINT);
+}
+
+
+void updateProcssStatus(process **process_list, int pid, int status)
+{
+    process *current_process = *process_list;
+    
+    while (current_process)
+    {
+	if (current_process->pid != pid)
+	    continue;
+	current_process->status = status;
+	printf("status of process %s was changed to %d\n", current_process->cmd->arguments[0], status);
+	return;
+    }
+    printf("no such process - %d\n", pid);
+}
 
 void addProcess(process **process_list, cmdLine *cmd, pid_t pid) {
     process *ps = (process *) malloc(sizeof(process));
@@ -35,25 +94,37 @@ void addProcess(process **process_list, cmdLine *cmd, pid_t pid) {
     if (process_list == NULL)
     {
         process_list = malloc(sizeof(process*));
-        process_list[0] = ps;
+        process_list = &ps;
         return;
     }
-    ps->next = process_list[0];
+    ps->next = *process_list;
+    *process_list = ps;
 }
 
 void printProcessList(process **process_list) {
-    if (process_list == NULL) {
+    if (*process_list == NULL) {
         printf("process list is empty\n");
-        _exit(0);
+	return;
     }
+    updateProcessList(process_list);
 
-    printf("process_id%\tcommand\tprocess_status\n");
-    process *current_process = process_list[0];
+    printf("process_id\t\tcommand\t\tprocess_status\n");
+    process *current_process = *process_list;
+    process *prev;
 
-    do {
-        printf("%d\t%s\t%d", current_process->pid, current_process->cmd->arguments[0], current_process->status);
+    while (current_process)
+    {
+        printf("%d\t\t\t%s\t\t\t%d\n", current_process->pid, current_process->cmd->arguments[0], current_process->status);
+	if (current_process->status == TERMINATED)
+	{
+	    prev->next = current_process->next;
+	    free(current_process);
+	    current_process = prev;
+	}
+	prev = current_process;
         current_process = current_process->next;
-    } while (current_process != NULL);
+	
+    }
 }
 
 void freeProcessList(process **process_list) {
@@ -69,9 +140,6 @@ void freeProcessList(process **process_list) {
     }
 }
 
-void updateProcessList(process **process_list){
-
-}
 
 void simulate_chdir(char *cwd, char *path) {
     strcat(cwd, "/");
@@ -95,16 +163,18 @@ int execute(cmdLine *pCmdLine) {
         return status;
 
     } else {
-        execvp(pCmdLine->arguments[0], pCmdLine->arguments);
-        perror(NULL);
-        _exit(1);
+        if (execvp(pCmdLine->arguments[0], pCmdLine->arguments) == -1)
+	{
+	    perror(NULL);
+	    _exit(errno);
+	}      
     }
     return 0;
 }
 
 int main(int argc, char **argv) {
     char cwd[MAX_PATH];
-    process **process_list;
+    process *process_list = NULL;
     cmdLine *current_cmd;
     char user_input[MAX_LENGTH];
     while (1) {
@@ -121,11 +191,14 @@ int main(int argc, char **argv) {
             continue;
         }
         if (strcmp(current_cmd->arguments[0], "showprocs") == 0) {
-            printProcessList(current_cmd->arguments + 1);
+            printProcessList(&process_list);
             continue;
         }
-        addProcess(process_list, current_cmd, 5);
-        printProcessList(process_list);
+	if (strcmp(current_cmd->arguments[0], "nap") == 0)
+	{
+	    nap(atoi(current_cmd->arguments[1]), atoi(current_cmd->arguments[2]));
+	    continue;
+	}
         execute(current_cmd);
     }
     return 0;
