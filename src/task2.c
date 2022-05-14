@@ -44,10 +44,10 @@ void addProcess(process **process_list, cmdLine *cmd, pid_t pid) {
 void printProcessList(process **process_list) {
     if (process_list == NULL) {
         printf("process list is empty\n");
-        _exit(0);
+        return;
     }
 
-    printf("process_id%\tcommand\tprocess_status\n");
+    printf("process_id\tcommand\tprocess_status\n");
     process *current_process = process_list[0];
 
     do {
@@ -121,7 +121,7 @@ int main(int argc, char **argv) {
             continue;
         }
         if (strcmp(current_cmd->arguments[0], "showprocs") == 0) {
-            printProcessList(current_cmd->arguments + 1);
+            printProcessList(process_list);
             continue;
         }
         addProcess(process_list, current_cmd, 5);
