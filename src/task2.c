@@ -29,16 +29,12 @@ typedef struct process {
 
 void updateProcessList(process **process_list)
 {
+    int wstatus;
     process *current_process = *process_list;
-    if (current_process == NULL)
-    {
-	printf("process list is empty\nno process has been updated\n");
-	return;
-    }
     while (current_process)
     {
-	
-	
+	waitpid(current_process->pid, &wstatus, WNOHANG);
+	printf("got status %d\n", wstatus);
     }
 }
 
@@ -149,7 +145,7 @@ void simulate_chdir(char *cwd, char *path) {
 }
 
 
-int execute(cmdLine *pCmdLine) {
+int execute(cmdLine *pCmdLine, process **process_list) {
     int status;
     pid_t ch_pid = fork();
     if (ch_pid == -1) {
@@ -163,6 +159,7 @@ int execute(cmdLine *pCmdLine) {
         return status;
 
     } else {
+	addProcess(process_list, pCmdLine, getpid());
         if (execvp(pCmdLine->arguments[0], pCmdLine->arguments) == -1)
 	{
 	    perror(NULL);
@@ -199,7 +196,7 @@ int main(int argc, char **argv) {
 	    nap(atoi(current_cmd->arguments[1]), atoi(current_cmd->arguments[2]));
 	    continue;
 	}
-        execute(current_cmd);
+        execute(current_cmd, &process_list);
     }
     return 0;
 }
