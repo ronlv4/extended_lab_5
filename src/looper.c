@@ -14,6 +14,13 @@ void handler(int signum)
 	write(STDOUT, signame, strlen(signame));
 	signal(signum, SIG_DFL);
 	raise(signum);
+
+	if (signum == SIGTSTP) {
+		signal(SIGCONT, handler);
+	}
+	else if (signum == SIGCONT) {
+		signal(SIGTSTP, handler);
+	}
 }
 
 int main(int argc, char **argv){ 
@@ -21,7 +28,6 @@ int main(int argc, char **argv){
 	signal(SIGTSTP, handler);
 	signal(SIGCONT, handler);
 
-	printf("Starting the program\n");
 
 	while(1) {
 		sleep(2);

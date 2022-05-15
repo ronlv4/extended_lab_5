@@ -37,10 +37,11 @@ void freeProcessList();
 void simulate_chdir();
 int execute();
 
-
-void nap(int time, int ps_pid)
+void nap(cmdLine *pCmdLine)
 {
     int status;
+    int time = atoi(pCmdLine->arguments[1]);
+    int ps_pid = atoi(pCmdLine->arguments[2]);
     int pid = fork();
     if (pid == -1)
     {
@@ -49,7 +50,8 @@ void nap(int time, int ps_pid)
     }
     if (pid)
     {
-        wait(&status);
+        /*if (pCmdLine->blocking)
+            waitpid(pid, &status, WNOHANG | WCONTINUED | WUNTRACED);*/
     }
     else
     {
@@ -72,10 +74,12 @@ void updateProcessList(process **process_list)
     {
         pid_t ret = waitpid(cur->pid, &ans, WNOHANG | WCONTINUED | WUNTRACED);
         if(ret != 0){
-            status =  (WIFSTOPPED(ans)) ? SUSPENDED :
-                (WIFSIGNALED(ans)|| WIFEXITED(ans)) ? TERMINATED :
-                RUNNING;
-            updateProcessStatus(cur, cur->pid, status);
+            status = (WIFSIGNALED(ans)|| WIFEXITED(ans)) ? TERMINATED :
+                     WIFSTOPPED(ans) ? SUSPENDED :
+                     WIFCONTINUED(ans) ? RUNNING:
+                     2;
+            if (status != 2)
+                updateProcessStatus(cur, cur->pid, status);
         }
         cur = cur->next;
     }
@@ -127,7 +131,7 @@ void printProcessList(process **process_list) {
     while (current_process)
     {
         char *string_status = current_process->status == -1 ? "TERMINATED":
-                                current_process-> status == 0 ? "RUNNING" :
+                                current_process->status == 1 ? "RUNNING" :
                                 "SUSPENDED";
         printf("%d\t\t\t%s\t\t%s\n", current_process->pid, current_process->cmd->arguments[0], string_status);
         if (current_process->status == TERMINATED)
@@ -199,9 +203,7 @@ int main(int argc, char **argv) {
         getcwd(cwd, MAX_PATH);
         write(STDOUT, cwd, strlen(cwd));
         write(STDOUT, "$ ", 2);
-        fflush(stdout);
         fgets(user_input, MAX_INPUT, stdin);
-        fflush(stdout);
         user_input[strlen(user_input) - 1] = '\0';
         if (strcmp(user_input, "quit") == 0)
             _exit(0);
@@ -216,11 +218,16 @@ int main(int argc, char **argv) {
             printProcessList(&process_list);
             continue;
         }
-	if (strcmp(current_cmd->arguments[0], "nap") == 0)
-	{
-	    nap(atoi(current_cmd->arguments[1]), atoi(current_cmd->arguments[2]));
-	    continue;
-	}
+        if (strcmp(current_cmd->arguments[0], "nap") == 0)
+        {
+            nap(current_cmd);
+            continue;
+        }
+        if (strcmp(current_cmd->arguments[0], "stop") == 0)
+        {
+            stop(atoi(current_cmd->arguments[0]));
+            continue;
+        }
         execute(current_cmd, &process_list);
     }
     return 0;
