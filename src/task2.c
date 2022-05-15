@@ -44,20 +44,18 @@ void nap(int time, int ps_pid)
     int pid = fork();
     if (pid == -1)
     {
-	perror(NULL);
-	_exit(pid);
+        perror(NULL);
+        _exit(pid);
     }
     if (pid)
     {
-	wait(&status);
-	return;
+        wait(&status);
     }
     else
     {
-	kill(ps_pid, SIGTSTP);
-	sleep(time);
-	kill(ps_pid, SIGCONT);
-	return;
+        kill(ps_pid, SIGTSTP);
+        sleep(time);
+        kill(ps_pid, SIGCONT);
     }
 }
 
@@ -77,10 +75,8 @@ void updateProcessList(process **process_list)
             status =  (WIFSTOPPED(ans)) ? SUSPENDED :
                 (WIFSIGNALED(ans)|| WIFEXITED(ans)) ? TERMINATED :
                 RUNNING;
-            printf("going to update process %d with status %d\n", cur->pid, status);
             updateProcessStatus(cur, cur->pid, status);
         }
-        printf("got status %d\n", status);
         cur = cur->next;
     }
 }
@@ -97,7 +93,6 @@ void updateProcessStatus(process *process_list, int pid, int status)
             continue;
         }
         current_process->status = status;
-        printf("status of process %s was changed to %d\n", current_process->cmd->arguments[0], status);
         return;
     }
     printf("no such process - %d\n", pid);
@@ -127,13 +122,21 @@ void printProcessList(process **process_list) {
 
     printf("process_id\t\tcommand\t\tprocess_status\n");
     process *current_process = *process_list;
-    process *prev;
+    process *prev = *process_list;
 
     while (current_process)
     {
-        printf("%d\t\t\t%s\t\t\t%d\n", current_process->pid, current_process->cmd->arguments[0], current_process->status);
+        char *string_status = current_process->status == -1 ? "TERMINATED":
+                                current_process-> status == 0 ? "RUNNING" :
+                                "SUSPENDED";
+        printf("%d\t\t\t%s\t\t%s\n", current_process->pid, current_process->cmd->arguments[0], string_status);
         if (current_process->status == TERMINATED)
         {
+            if (current_process == *process_list)
+            {
+                *process_list = NULL;
+                return;
+            }            
             prev->next = current_process->next;
             free(current_process);
             current_process = prev;
@@ -176,8 +179,7 @@ int execute(cmdLine *pCmdLine, process **process_list) {
     if (ch_pid > 0) {
         if (pCmdLine->blocking)
             wait(&status);
-        printf("adding process %d\n", ch_pid);
-        addProcess(process_list,pCmdLine,ch_pid); /* parent adds process to the list */
+        addProcess(process_list,pCmdLine,ch_pid);
     } else {
         if (execvp(pCmdLine->arguments[0], pCmdLine->arguments) == -1)
         {
