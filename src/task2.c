@@ -27,16 +27,16 @@ typedef struct process {
     struct process *next; /* next process in chain */
 } process;
 
-void updateProcessList(process **process_list)
-{
-    int wstatus;
-    process *current_process = *process_list;
-    while (current_process)
-    {
-	waitpid(current_process->pid, &wstatus, WNOHANG);
-	printf("got status %d\n", wstatus);
-    }
-}
+void updateProcessList();
+void nap();
+void stop();
+void updateProcessStatus();
+void addProcess();
+void printProcessList();
+void freeProcessList();
+void simulate_chdir();
+int execute();
+
 
 void nap(int time, int ps_pid)
 {
@@ -66,18 +66,39 @@ void stop(int pid)
     kill(pid, SIGINT);
 }
 
-
-void updateProcssStatus(process **process_list, int pid, int status)
+void updateProcessList(process **process_list)
 {
-    process *current_process = *process_list;
+    int status, ans;
+    process *cur = *process_list;
+    while (cur)
+    {
+        pid_t ret = waitpid(cur->pid, &ans, WNOHANG | WCONTINUED | WUNTRACED);
+        if(ret != 0){
+            status =  (WIFSTOPPED(ans)) ? SUSPENDED :
+                (WIFSIGNALED(ans)|| WIFEXITED(ans)) ? TERMINATED :
+                RUNNING;
+            printf("going to update process %d with status %d\n", cur->pid, status);
+            updateProcessStatus(cur, cur->pid, status);
+        }
+        printf("got status %d\n", status);
+        cur = cur->next;
+    }
+}
+
+void updateProcessStatus(process *process_list, int pid, int status)
+{
+    process *current_process = process_list;
     
     while (current_process)
     {
-	if (current_process->pid != pid)
-	    continue;
-	current_process->status = status;
-	printf("status of process %s was changed to %d\n", current_process->cmd->arguments[0], status);
-	return;
+        if (current_process->pid != pid)
+        {
+            current_process = current_process->next;
+            continue;
+        }
+        current_process->status = status;
+        printf("status of process %s was changed to %d\n", current_process->cmd->arguments[0], status);
+        return;
     }
     printf("no such process - %d\n", pid);
 }
@@ -111,24 +132,23 @@ void printProcessList(process **process_list) {
     while (current_process)
     {
         printf("%d\t\t\t%s\t\t\t%d\n", current_process->pid, current_process->cmd->arguments[0], current_process->status);
-	if (current_process->status == TERMINATED)
-	{
-	    prev->next = current_process->next;
-	    free(current_process);
-	    current_process = prev;
-	}
-	prev = current_process;
+        if (current_process->status == TERMINATED)
+        {
+            prev->next = current_process->next;
+            free(current_process);
+            current_process = prev;
+        }
+        prev = current_process;
         current_process = current_process->next;
-	
     }
 }
 
-void freeProcessList(process **process_list) {
+void freeProcessList(process *process_list) {
     process *current;
     process *next;
     if (process_list == NULL)
         return;
-    current = next = process_list[0];
+    current = next = process_list;
     while (current != NULL) {
         next = next->next;
         free(current);
@@ -156,15 +176,14 @@ int execute(cmdLine *pCmdLine, process **process_list) {
     if (ch_pid > 0) {
         if (pCmdLine->blocking)
             wait(&status);
-        return status;
-
+        printf("adding process %d\n", ch_pid);
+        addProcess(process_list,pCmdLine,ch_pid); /* parent adds process to the list */
     } else {
-	addProcess(process_list, pCmdLine, getpid());
         if (execvp(pCmdLine->arguments[0], pCmdLine->arguments) == -1)
-	{
-	    perror(NULL);
-	    _exit(errno);
-	}      
+        {
+            perror(NULL);
+            _exit(errno);
+        }      
     }
     return 0;
 }
@@ -178,10 +197,14 @@ int main(int argc, char **argv) {
         getcwd(cwd, MAX_PATH);
         write(STDOUT, cwd, strlen(cwd));
         write(STDOUT, "$ ", 2);
+        fflush(stdout);
         fgets(user_input, MAX_INPUT, stdin);
+        fflush(stdout);
         user_input[strlen(user_input) - 1] = '\0';
         if (strcmp(user_input, "quit") == 0)
             _exit(0);
+        if (strcmp(user_input, "") == 0)
+            continue;
         current_cmd = parseCmdLines(user_input);
         if (strcmp(current_cmd->arguments[0], "cd") == 0) {
             simulate_chdir(cwd, current_cmd->arguments[1]);
