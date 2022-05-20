@@ -225,7 +225,7 @@ int main(int argc, char **argv) {
         }
         if (strcmp(current_cmd->arguments[0], "stop") == 0)
         {
-            stop(atoi(current_cmd->arguments[0]));
+            stop(atoi(current_cmd->arguments[1]));
             continue;
         }
         execute(current_cmd, &process_list);
