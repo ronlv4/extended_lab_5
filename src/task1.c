@@ -4,6 +4,7 @@
 #include <errno.h>
 #include <sys/types.h>
 #include <sys/wait.h>
+#include <sys/ioctl.h>
 
 #include "limits.h"
 #include "string.h"
@@ -31,6 +32,7 @@ void updateProcessList();
 void nap();
 void stop();
 void updateProcessStatus();
+process* deleteProcess();
 void addProcess();
 void printProcessList();
 void freeProcessList();
@@ -50,8 +52,8 @@ void nap(cmdLine *pCmdLine)
     }
     if (pid)
     {
-        /*if (pCmdLine->blocking)
-            waitpid(pid, &status, WNOHANG | WCONTINUED | WUNTRACED);*/
+        if (pCmdLine->blocking)
+            waitpid(pid, &status, WNOHANG | WCONTINUED | WUNTRACED);
     }
     else
     {
@@ -96,10 +98,37 @@ void updateProcessStatus(process *process_list, int pid, int status)
             current_process = current_process->next;
             continue;
         }
+	printf("updating process %s to status %d\n", current_process->cmd->arguments[0], status);
         current_process->status = status;
         return;
     }
     printf("no such process - %d\n", pid);
+}
+
+process* deleteProcess(process **process_list, process *to_delete){
+    process* temp = *process_list;
+    process* prev = NULL;
+    if (temp != NULL && temp == to_delete)
+    {
+        *process_list = temp->next; // Changed head
+        free(temp);            // free old head
+        return *process_list;
+    }
+ 
+    while (temp != NULL && temp != to_delete)
+    {
+        prev = temp;
+        temp = temp->next;
+    }
+ 
+    if (temp == NULL)
+        return NULL;
+ 
+    prev->next = temp->next;
+ 
+    free(temp);
+
+    return prev->next;
 }
 
 void addProcess(process **process_list, cmdLine *cmd, pid_t pid) {
@@ -107,14 +136,21 @@ void addProcess(process **process_list, cmdLine *cmd, pid_t pid) {
     ps->cmd = cmd;
     ps->pid = pid;
     ps->status = RUNNING;
-    if (process_list == NULL)
+    ps->next = NULL;
+    printf("before assignment:\n\n");
+    printf("process list pointer is %p\n", process_list);
+    printf("process list value is %p\n", *process_list);
+    if (!*process_list)
     {
-        process_list = malloc(sizeof(process*));
-        process_list = &ps;
+        /* process_list = malloc(sizeof(process*)); */
+        *process_list = ps;
         return;
     }
     ps->next = *process_list;
     *process_list = ps;
+    printf("after assignment:\n\n");
+    printf("process list pointer is %p\n", process_list);
+    printf("process list value is %p\n", *process_list);
 }
 
 void printProcessList(process **process_list) {
@@ -123,29 +159,24 @@ void printProcessList(process **process_list) {
         return;
     }
     updateProcessList(process_list);
+    struct winsize w;
+    ioctl(STDOUT_FILENO, TIOCGWINSZ, &w);
 
-    printf("process_id\t\tcommand\t\tprocess_status\n");
+    int spaces_num = (w.ws_col - strlen("process_idcommandprocess_status")) / 2;
+    printf("%s %*s %*s\n", "process_id", spaces_num, "command", spaces_num, "process_status");
     process *current_process = *process_list;
-    process *prev = *process_list;
 
     while (current_process)
     {
         char *string_status = current_process->status == -1 ? "TERMINATED":
                                 current_process->status == 1 ? "RUNNING" :
                                 "SUSPENDED";
-        printf("%d\t\t\t%s\t\t%s\n", current_process->pid, current_process->cmd->arguments[0], string_status);
+        printf("%d %*s %*s\n", current_process->pid,spaces_num, current_process->cmd->arguments[0], spaces_num, string_status);
         if (current_process->status == TERMINATED)
         {
-            if (current_process == *process_list)
-            {
-                *process_list = NULL;
-                return;
-            }            
-            prev->next = current_process->next;
-            free(current_process);
-            current_process = prev;
+	    current_process = deleteProcess(process_list, current_process);
+	    continue;
         }
-        prev = current_process;
         current_process = current_process->next;
     }
 }
